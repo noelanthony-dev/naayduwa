@@ -73,6 +73,7 @@ export default function EventDetailsModal() {
   const [playerName, setPlayerName] = useState("");
   const [playerStatus, setPlayerStatus] = useState<AttendeeStatus>("confirmed");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAtt, setConfirmAtt] = useState<{ open: boolean; id?: string; name?: string }>({ open: false });
 
   // Editing state
   const [editing, setEditing] = useState(false);
@@ -161,10 +162,10 @@ export default function EventDetailsModal() {
                     aria-label="Edit event"
                     title="Edit event"
                     onClick={() => setEditing(true)}
-                    className="h-8 w-8 grid place-items-center rounded-md bg-[#1E1E2E] border border-white/10 text-fg/80 hover:bg-white/10"
+                    className="h-10 w-10 grid place-items-center rounded-md bg-[#1E1E2E] border border-white/10 text-fg/80 hover:bg-white/10"
                   >
                     {/* Pencil icon */}
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
                       <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm3.92 2.33H5v-1.92L14.06 7.52l1.92 1.92L6.92 19.58zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                     </svg>
                   </button>
@@ -173,17 +174,17 @@ export default function EventDetailsModal() {
                   aria-label="Delete event"
                   title="Delete event"
                   onClick={() => setConfirmOpen(true)}
-                  className="h-8 w-8 grid place-items-center rounded-md bg-[#1E1E2E] border border-white/10 text-fg/80 hover:bg-white/10"
+                  className="h-10 w-10 grid place-items-center rounded-md bg-[#1E1E2E] border border-white/10 text-fg/80 hover:bg-white/10"
                 >
                   {/* Trash icon */}
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
                     <path d="M9 3a1 1 0 0 0-1 1v1H5.5a1 1 0 1 0 0 2H6v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7h.5a1 1 0 1 0 0-2H16V4a1 1 0 0 0-1-1H9zm2 2h4V4h-4v1zM8 7h10v11a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V7zm3 3a1 1 0 1 0-2 0v7a1 1 0 1 0 2 0v-7zm5 0a1 1 0 1 0-2 0v7a1 1 0 1 0 2 0v-7z"/>
                   </svg>
                 </button>
                 <button
                   aria-label="Close"
                   onClick={() => dispatch({ type: "CLOSE_DETAILS" })}
-                  className="h-8 w-8 grid place-items-center rounded-md bg-[#1E1E2E] border border-white/10 text-fg/80 hover:bg-white/10"
+                  className="h-10 w-10 grid place-items-center rounded-md bg-[#1E1E2E] border border-white/10 text-fg/80 hover:bg-white/10"
                 >
                   ×
                 </button>
@@ -289,7 +290,12 @@ export default function EventDetailsModal() {
                           <div className="text-xs text-fg/70">{(a.status ?? "confirmed") === "confirmed" ? "Confirmed" : (a.status ?? "maybe") === "maybe" ? "Maybe" : "No"}</div>
                         </div>
                       </div>
-                      <button onClick={() => removePlayer(a.id)} className="h-7 w-7 grid place-items-center rounded-md bg-white/5 border border-white/10 text-fg/70 hover:text-fg">×</button>
+                      <button
+                        onClick={() => setConfirmAtt({ open: true, id: a.id, name: a.name })}
+                        className="h-7 w-7 grid place-items-center rounded-md bg-white/5 border border-white/10 text-fg/70 hover:text-fg"
+                      >
+                        ×
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -358,6 +364,45 @@ export default function EventDetailsModal() {
                 }}
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirm Remove Attendee */}
+      <Modal open={confirmAtt.open} onClose={() => setConfirmAtt({ open: false })}>
+        <div className="w-full max-w-[92vw] md:max-w-[420px] bg-[#1E1E2E] rounded-2xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+            <div className="text-base font-semibold text-fg">Remove player?</div>
+            <button
+              aria-label="Close"
+              onClick={() => setConfirmAtt({ open: false })}
+              className="h-8 w-8 grid place-items-center rounded-md bg-[#1E1E2E] border border-white/10 text-fg/80 hover:bg-white/10"
+            >
+              ×
+            </button>
+          </div>
+          <div className="p-4 md:p-5">
+            <div className="rounded-xl bg-black border border-white/10 p-4">
+              <p className="text-sm text-fg/80">
+                This will remove <span className="font-semibold">{confirmAtt.name ?? "this player"}</span> from the attendee list.
+              </p>
+            </div>
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="btn-ghost" onClick={() => setConfirmAtt({ open: false })}>Cancel</button>
+              <button
+                className="rounded-lg px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700"
+                onClick={() => {
+                  if (confirmAtt.id) {
+                    dispatch({ type: "REMOVE_ATTENDEE", payload: { eventId: event.id, attendeeId: confirmAtt.id } });
+                    dispatch({ type: "SHOW_TOAST", payload: `Removed ${confirmAtt.name ?? "player"}` });
+                    setTimeout(() => dispatch({ type: "CLEAR_TOAST" }), 2000);
+                  }
+                  setConfirmAtt({ open: false });
+                }}
+              >
+                Remove
               </button>
             </div>
           </div>

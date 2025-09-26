@@ -54,29 +54,25 @@ export default function MonthCalendar() {
   return (
     <div className="w-full bg-black p-0 md:p-6 border-0 md:border md:border-white/8 md:shadow-soft">
       <div className="mb-3 flex items-center justify-center gap-4">
-        <span className="hidden sm:inline">
-          <button
-            aria-label="Previous month"
-            onClick={() => dispatch({ type: "NAV_MONTH", payload: -1 })}
-            className="hidden sm:grid h-10 w-10 rounded-md bg-black border border-primary/50 text-primary hover:bg-primary/10 transition place-items-center"
-          >
-            ‹
-          </button>
-        </span>
+        <button
+          aria-label="Previous month"
+          onClick={() => dispatch({ type: "NAV_MONTH", payload: -1 })}
+          className="grid h-9 w-9 sm:h-10 sm:w-10 rounded-md bg-gray-700 text-white hover:bg-gray-600 transition place-items-center"
+        >
+          ‹
+        </button>
 
         <h2 className="text-xl sm:text-3xl font-semibold tracking-wide text-fg leading-tight">
           {monthLabel(state.monthCursorISO)}
         </h2>
 
-        <span className="hidden sm:inline">
-          <button
-            aria-label="Next month"
-            onClick={() => dispatch({ type: "NAV_MONTH", payload: 1 })}
-            className="hidden sm:grid h-10 w-10 rounded-md bg-black border border-primary/50 text-primary hover:bg-primary/10 transition place-items-center"
-          >
-            ›
-          </button>
-        </span>
+        <button
+          aria-label="Next month"
+          onClick={() => dispatch({ type: "NAV_MONTH", payload: 1 })}
+          className="grid h-9 w-9 sm:h-10 sm:w-10 rounded-md bg-gray-700 text-white hover:bg-gray-600 transition place-items-center"
+        >
+          ›
+        </button>
       </div>
 
       <div className="overflow-hidden rounded-none md:border md:border-white/10">
