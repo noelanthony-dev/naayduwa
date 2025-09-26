@@ -1,0 +1,1 @@
+//Brand → file path map (+ alias handling: “magnum”)
