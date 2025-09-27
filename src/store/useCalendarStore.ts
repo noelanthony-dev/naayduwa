@@ -8,6 +8,21 @@ import { CalendarState, EventItem, Attendee } from "@/types/event";
 import { load, save } from "@/lib/storage";
 import { startOfMonthISO, toISODate } from "@/lib/date";
 
+// Helper: extract message without using `any`
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+// Allow non-React callers (e.g., reducer side-effects) to surface toasts
+let globalDispatch: React.Dispatch<Action> | null = null;
+function toast(msg: string) {
+  if (globalDispatch) {
+    globalDispatch({ type: "SHOW_TOAST", payload: msg });
+    // auto-clear after 3s
+    setTimeout(() => globalDispatch && globalDispatch({ type: "CLEAR_TOAST" }), 3000);
+  }
+}
+
 type ExtState = CalendarState & { toastMessage: string | null };
 type Action =
   | { type: "INIT_EVENTS"; payload: EventItem[] }
@@ -67,7 +82,10 @@ function reducer(state: ExtState, action: Action): ExtState {
     }
     case "ADD_EVENT": {
       // Write to Firestore; list will refresh via snapshot
-      void fsAddEvent(action.payload);
+      void fsAddEvent(action.payload).catch((e) => {
+        console.error("Add event failed:", e);
+        toast(`Add failed: ${errMsg(e)}`);
+      });
       const next = { ...state, modal: { ...state.modal, addEventOpen: false } };
       save(next);
       return next;
@@ -83,22 +101,34 @@ function reducer(state: ExtState, action: Action): ExtState {
       return next;
     }
     case "ADD_ATTENDEE": {
-      void fsAddAttendee(action.payload.eventId, action.payload.attendee);
+      void fsAddAttendee(action.payload.eventId, action.payload.attendee).catch((e) => {
+        console.error("Add attendee failed:", e);
+        toast(`Add attendee failed: ${errMsg(e)}`);
+      });
       return state;
     }
     case "REMOVE_ATTENDEE": {
-      void fsRemoveAttendee(action.payload.eventId, action.payload.attendeeId);
+      void fsRemoveAttendee(action.payload.eventId, action.payload.attendeeId).catch((e) => {
+        console.error("Remove attendee failed:", e);
+        toast(`Remove attendee failed: ${errMsg(e)}`);
+      });
       return state;
     }
     case "DELETE_EVENT": {
-      void fsDeleteEvent(action.payload.eventId);
+      void fsDeleteEvent(action.payload.eventId).catch((e) => {
+        console.error("Delete event failed:", e);
+        toast(`Delete failed: ${errMsg(e)}`);
+      });
       const next = { ...state, modal: { ...state.modal, detailsEventId: undefined } };
       save(next);
       return next;
     }
     case "UPDATE_EVENT": {
       // Upsert to Firestore (re-uses add API which setDocs by id)
-      void fsAddEvent(action.payload.event);
+      void fsAddEvent(action.payload.event).catch((e) => {
+        console.error("Update event failed:", e);
+        toast(`Update failed: ${errMsg(e)}`);
+      });
       // Optimistic local update so UI reflects immediately
       const events = state.events.map((e) =>
         e.id === action.payload.event.id ? action.payload.event : e
@@ -126,6 +156,7 @@ const Ctx = createContext<{ state: ExtState; dispatch: React.Dispatch<Action> } 
 
 export function CalendarProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  globalDispatch = dispatch;
   React.useEffect(() => {
     const unsub = subscribeEvents((events) => {
       dispatch({ type: "INIT_EVENTS", payload: events });

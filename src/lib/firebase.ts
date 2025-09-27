@@ -1,5 +1,6 @@
 // "use client" not required if only imported by client code
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, signInAnonymously } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY!,
@@ -10,4 +11,12 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID!,
 };
 
-export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
+const auth = getAuth(app);
+
+// 🔑 Auto sign-in every visitor as anonymous
+signInAnonymously(auth).catch((error) => {
+  console.error("Anonymous sign-in failed", error);
+});
+
+export { app, auth };
