@@ -4,6 +4,19 @@ import Modal from "@/components/ui/Modal";
 import { useCalendar } from "@/store/useCalendarStore";
 import { useEffect, useMemo, useState } from "react";
 import { AttendeeStatus, EventItem } from "@/types/event";
+// Platform detection utility
+function getPlatform(): "ios" | "android" | "desktop" {
+  if (typeof navigator === "undefined") return "desktop";
+  const ua = navigator.userAgent || "";
+  const nav = navigator as Navigator & { platform?: string; maxTouchPoints?: number };
+
+  const isiOSUA = /iPad|iPhone|iPod/.test(ua);
+  const isiPadOS = nav.platform === "MacIntel" && (nav.maxTouchPoints ?? 0) > 1; // iPadOS reports MacIntel
+  if (isiOSUA || isiPadOS) return "ios";
+
+  if (/Android/i.test(ua)) return "android";
+  return "desktop";
+}
 
 function formatHeading(dateISO: string) {
   const [y, m, d] = dateISO.split("-").map(Number);
@@ -60,6 +73,89 @@ function toMinutes(t: string) {
   return h * 60 + m;
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+/** Local (floating) ICS datetime: YYYYMMDDTHHMMSS */
+function toICSLocal(dateISO: string, time?: string): string {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  let H = 0, M = 0;
+  if (time) {
+    const [hh, mm] = time.split(":").map(Number);
+    H = hh; M = mm;
+  }
+  const dt = new Date(y, (m ?? 1) - 1, d ?? 1, H, M, 0);
+  return `${dt.getFullYear()}${pad2(dt.getMonth() + 1)}${pad2(dt.getDate())}T${pad2(dt.getHours())}${pad2(dt.getMinutes())}00`;
+}
+
+/** Calculate end ICS time; if no end, add 1 hour to start */
+function toICSEnd(dateISO: string, startTime?: string, endTime?: string): string {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const [sH, sM] = (startTime ?? "00:00").split(":").map(Number);
+  let end: Date;
+  if (endTime) {
+    const [eH, eM] = endTime.split(":").map(Number);
+    end = new Date(y, (m ?? 1) - 1, d ?? 1, eH, eM, 0);
+  } else {
+    end = new Date(y, (m ?? 1) - 1, d ?? 1, sH, sM, 0);
+    end.setHours(end.getHours() + 1);
+  }
+  return `${end.getFullYear()}${pad2(end.getMonth() + 1)}${pad2(end.getDate())}T${pad2(end.getHours())}${pad2(end.getMinutes())}00`;
+}
+
+function buildICS(e: EventItem): string {
+  const dtStamp = new Date();
+  const dtstampUTC = `${dtStamp.getUTCFullYear()}${pad2(dtStamp.getUTCMonth() + 1)}${pad2(dtStamp.getUTCDate())}` +
+    `T${pad2(dtStamp.getUTCHours())}${pad2(dtStamp.getUTCMinutes())}${pad2(dtStamp.getUTCSeconds())}Z`;
+
+  const dtstart = toICSLocal(e.dateISO, e.startTime);
+  const dtend = toICSEnd(e.dateISO, e.startTime, e.endTime);
+  const summary = (e.court ?? "Event").replace(/\r?\n/g, " ");
+  const description = (e.notes ?? "").replace(/\r?\n/g, "\\n");
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Naay Duwa?//Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${e.id}@naayduwa`,
+    `DTSTAMP:${dtstampUTC}`,
+    `DTSTART:${dtstart}`,
+    `DTEND:${dtend}`,
+    `SUMMARY:${summary}`,
+    description ? `DESCRIPTION:${description}` : undefined,
+    "END:VEVENT",
+    "END:VCALENDAR",
+    ""
+  ].filter(Boolean).join("\r\n");
+}
+
+function downloadICSForEvent(e: EventItem) {
+  const ics = buildICS(e);
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const name = `${(e.court ?? "event").replace(/\s+/g, "_")}-${e.dateISO}.ics`;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function openGoogleCalendarForEvent(e: EventItem) {
+  const start = toICSLocal(e.dateISO, e.startTime);
+  const end = toICSEnd(e.dateISO, e.startTime, e.endTime);
+  const text = encodeURIComponent(e.court ?? "Event");
+  const details = encodeURIComponent(e.notes ?? "");
+  const gcal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${start}/${end}&details=${details}`;
+  window.open(gcal, "_blank", "noopener,noreferrer");
+}
+
 export default function EventDetailsModal() {
   const { state, dispatch } = useCalendar();
   const open = Boolean(state.modal.detailsEventId);
@@ -85,6 +181,7 @@ export default function EventDetailsModal() {
   const [eHour, setEHour] = useState<string>("07");
   const [eMin, setEMin] = useState<typeof MINUTES[number]>("00");
   const [eAm, setEAm] = useState<AmPm>("PM");
+  const [calOpen, setCalOpen] = useState(false);
 
   useEffect(() => {
     // Reset editing fields when modal opens or event changes
@@ -210,10 +307,71 @@ export default function EventDetailsModal() {
 
                 {/* Time */}
                 {!editing && (event.startTime || event.endTime) && (
-                  <div className="mb-4 flex items-center gap-2">
+                  <div className="mb-4 flex items-center justify-between gap-2">
                     <div className="rounded-xl border-2 border-primary/60 bg-black px-3 py-1.5 text-primary font-semibold text-base leading-none">
                       {to12h(event.startTime)}
                       {event.endTime ? ` – ${to12h(event.endTime)}` : ""}
+                    </div>
+                    <div className="relative">
+                      {(() => {
+                        const platform = getPlatform();
+                        if (platform === "ios") {
+                          // iOS: Download .ics directly
+                          return (
+                            <button
+                              className="rounded-lg bg-[#1E1E2E] px-3 py-1.5 text-sm text-fg hover:bg-white/10 border border-white/10"
+                              onClick={() => downloadICSForEvent(event)}
+                            >
+                              Add to Calendar
+                            </button>
+                          );
+                        }
+                        if (platform === "android") {
+                          // Android: Go to Google Calendar directly
+                          return (
+                            <button
+                              className="rounded-lg bg-[#1E1E2E] px-3 py-1.5 text-sm text-fg hover:bg-white/10 border border-white/10"
+                              onClick={() => openGoogleCalendarForEvent(event)}
+                            >
+                              Add to Calendar
+                            </button>
+                          );
+                        }
+                        // Desktop: Show dropdown menu with both options
+                        return (
+                          <>
+                            <button
+                              className="rounded-lg bg-[#1E1E2E] px-3 py-1.5 text-sm text-fg hover:bg-white/10 border border-white/10"
+                              onClick={() => setCalOpen((v) => !v)}
+                              aria-haspopup="menu"
+                              aria-expanded={calOpen}
+                            >
+                              Add to Calendar
+                            </button>
+                            {calOpen && (
+                              <div
+                                className="absolute right-0 mt-2 w-48 rounded-lg border border-white/10 bg-[#1E1E2E] shadow-lg overflow-hidden z-20"
+                                role="menu"
+                              >
+                                <button
+                                  className="block w-full text-left px-3 py-2 text-sm hover:bg-white/10"
+                                  onClick={() => { downloadICSForEvent(event); setCalOpen(false); }}
+                                  role="menuitem"
+                                >
+                                  Apple / Outlook (.ics)
+                                </button>
+                                <button
+                                  className="block w-full text-left px-3 py-2 text-sm hover:bg-white/10"
+                                  onClick={() => { openGoogleCalendarForEvent(event); setCalOpen(false); }}
+                                  role="menuitem"
+                                >
+                                  Google Calendar
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
