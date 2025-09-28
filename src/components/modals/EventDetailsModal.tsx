@@ -316,11 +316,26 @@ export default function EventDetailsModal() {
                       {(() => {
                         const platform = getPlatform();
                         if (platform === "ios") {
-                          // iOS: Download .ics directly
+                          // iOS: Try to open Calendar via data URL, fallback to download
+                          const openIOS = () => {
+                            try {
+                              const ics = buildICS(event);
+                              const dataUrl = `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
+                              // Using _self so Safari navigates and offers Calendar directly when possible
+                              window.open(dataUrl, "_self");
+                              // If the above is blocked, also keep a silent fallback after a small delay
+                              setTimeout(() => {
+                                // Fallback to blob download
+                                downloadICSForEvent(event);
+                              }, 350);
+                            } catch {
+                              downloadICSForEvent(event);
+                            }
+                          };
                           return (
                             <button
                               className="rounded-lg bg-[#1E1E2E] px-3 py-1.5 text-sm text-fg hover:bg-white/10 border border-white/10"
-                              onClick={() => downloadICSForEvent(event)}
+                              onClick={openIOS}
                             >
                               Add to Calendar
                             </button>
