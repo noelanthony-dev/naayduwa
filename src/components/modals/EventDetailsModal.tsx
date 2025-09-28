@@ -100,7 +100,7 @@ export default function EventDetailsModal() {
 
   if (!open || !event) return null;
 
-  const attendeeCount = event.attendees.length;
+  const confirmedCount = event.attendees.filter(a => (a.status ?? "confirmed") === "confirmed").length;
 
   const addPlayer = () => {
     const name = playerName.trim();
@@ -127,7 +127,7 @@ export default function EventDetailsModal() {
   return (
     <>
       <Modal open={open} onClose={() => dispatch({ type: "CLOSE_DETAILS" })}>
-        <div className="w-full max-w-[100vw] h-[100dvh] overflow-x-hidden rounded-none bg-[#1E1E2E] md:w-[720px] md:max-w-[720px] md:h-auto md:max-h-[80vh] md:rounded-2xl md:overflow-hidden">
+        <div className="w-full max-w-[100vw] max-h-[100dvh] overflow-x-hidden overflow-y-auto rounded-none bg-[#1E1E2E] md:w-[720px] md:max-w-[720px] md:max-h-[90vh] md:rounded-2xl">
           <div className="flex h-full flex-col">
             {/* Header (sticky on mobile) */}
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-[#1E1E2E] px-4 py-3 md:px-6 md:py-4">
@@ -192,8 +192,8 @@ export default function EventDetailsModal() {
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6">
-              <div className="rounded-xl bg-black border border-white/10 p-4 md:p-6">
+            <div className="flex-1 min-h-0 overflow-hidden px-4 py-4 md:px-6 md:py-6">
+              <div className="rounded-xl bg-black border border-white/10 p-4 md:p-6 flex flex-col min-h-0">
                 {/* Title (Court) + Notes */}
                 <div className="mb-3 space-y-1">
                   {editing ? (
@@ -262,7 +262,7 @@ export default function EventDetailsModal() {
                 {/* Attending summary + actions */}
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="rounded-full bg-lime-400/20 text-lime-300 px-2 py-0.5 text-xs">{attendeeCount} attending</span>
+                    <span className="rounded-full bg-lime-400/20 text-lime-300 px-2 py-0.5 text-xs">{confirmedCount} attending</span>
                     <span className="hidden sm:inline text-xs text-fg/60">Updated 1h ago</span>
                   </div>
                   <button
@@ -274,31 +274,35 @@ export default function EventDetailsModal() {
                 </div>
 
                 {/* Attendees list */}
-                <div className="text-sm font-medium text-fg mb-2">Kinsay muduwa? ({attendeeCount})</div>
-                <div className="space-y-2">
-                  {attendeeCount === 0 && (
-                    <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-fg/70">Walay mo duwa 😢</div>
-                  )}
-                  {event.attendees.map((a) => (
-                    <div key={a.id} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-3 py-2">
-                      <div className="flex items-center gap-3">
-                        <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary font-semibold">
-                          {initials(a.name)}
+                <div className="text-sm font-medium text-fg mb-2">Kinsay muduwa? ({confirmedCount})</div>
+                <div className="flex-1 min-h-0">
+                  <div className="h-full overflow-y-auto overscroll-contain supports-[overflow:overlay]:overflow-y-overlay [-webkit-overflow-scrolling:touch] pr-1 -mr-1">
+                    <div className="space-y-2">
+                    {confirmedCount === 0 && (
+                      <div className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-fg/70">Walay mo duwa 😢</div>
+                    )}
+                    {event.attendees.map((a) => (
+                      <div key={a.id} className="flex items-center justify-between rounded-xl bg-white/5 border border-white/10 px-3 py-2">
+                        <div className="flex items-center gap-3">
+                          <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary font-semibold">
+                            {initials(a.name)}
+                          </div>
+                          <div className="leading-tight">
+                            <div className="font-medium text-fg">{a.name}</div>
+                            <div className="text-xs text-fg/70">{(a.status ?? "confirmed") === "confirmed" ? "Confirmed" : (a.status ?? "maybe") === "maybe" ? "Maybe" : "No"}</div>
+                          </div>
                         </div>
-                        <div className="leading-tight">
-                          <div className="font-medium text-fg">{a.name}</div>
-                          <div className="text-xs text-fg/70">{(a.status ?? "confirmed") === "confirmed" ? "Confirmed" : (a.status ?? "maybe") === "maybe" ? "Maybe" : "No"}</div>
-                        </div>
+                        <button
+                          onClick={() => setConfirmAtt({ open: true, id: a.id, name: a.name })}
+                          className="h-7 w-7 grid place-items-center rounded-md bg-white/5 border border-white/10 text-fg/70 hover:text-fg"
+                        >
+                          ×
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setConfirmAtt({ open: true, id: a.id, name: a.name })}
-                        className="h-7 w-7 grid place-items-center rounded-md bg-white/5 border border-white/10 text-fg/70 hover:text-fg"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
+              </div>
 
                 {/* Add Player form */}
                 {showAdd && (

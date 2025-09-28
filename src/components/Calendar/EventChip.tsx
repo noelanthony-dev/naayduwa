@@ -37,7 +37,7 @@ export default function EventChip({ ev }: { ev?: Partial<EventItem> }) {
           (e.currentTarget as HTMLDivElement).click();
         }
       }}
-      className="w-full text-left cursor-pointer flex flex-col rounded bg-white/10 p-1 hover:bg-white/20"
+      className="w-full text-left cursor-pointer flex flex-col rounded bg-white/10 p-1 hover:bg-white/20 focus:outline-none"
       title={court}
     >
       <div className="min-w-0">

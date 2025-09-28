@@ -38,20 +38,33 @@ export default function AddEventModal() {
   const [endTime, setEndTime] = useState("");
   const [court, setCourt] = useState("");
   const [notes, setNotes] = useState("");
+  const [courtError, setCourtError] = useState<string | null>(null);
+
+  const isEndInvalid = Boolean(endTime) && toMinutes(endTime) <= toMinutes(startTime);
+  const isCourtInvalid = court.trim().length === 0;
 
   const onSave = () => {
     if (dateISO < todayISO) return;
     if (endTime && toMinutes(endTime) <= toMinutes(startTime)) return; // invalid, do not save
+  
+    const trimmedCourt = court.trim();
+    if (!trimmedCourt) {
+      setCourtError("Court is required");
+      return; // require court
+    }
+    const trimmedNotes = notes.trim();
+  
     const ev: EventItem = {
       id: crypto.randomUUID(),
       dateISO,
       startTime,
-      ...(endTime ? { endTime } : {}),
-      court,
-      notes: notes || undefined,
+      ...(endTime ? { endTime } : {}),           // include only if provided
+      court: trimmedCourt,                       // always trimmed
+      ...(trimmedNotes ? { notes: trimmedNotes } : {}), // omit if empty
       attendees: [],
       updatedAt: Date.now(),
     };
+  
     dispatch({ type: "ADD_EVENT", payload: ev });
   };
 
@@ -92,6 +105,7 @@ export default function AddEventModal() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <div className="label">Start</div>
+                    {/* step=1800 ensures only 00 and 30 minute intervals in mobile spinners */}
                     <input
                       className="input"
                       type="time"
@@ -110,6 +124,7 @@ export default function AddEventModal() {
                   </div>
                   <div>
                     <div className="label">End (optional)</div>
+                    {/* step=1800 ensures only 00 and 30 minute intervals in mobile spinners */}
                     <input
                       className="input"
                       type="time"
@@ -138,9 +153,19 @@ export default function AddEventModal() {
                   <input
                     className="input"
                     value={court}
-                    onChange={(e) => setCourt(e.target.value)}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setCourt(v);
+                      if (courtError && v.trim().length > 0) setCourtError(null);
+                    }}
                     placeholder="Magnum"
+                    required
+                    aria-invalid={Boolean(courtError)}
+                    aria-describedby={courtError ? "court-error" : undefined}
                   />
+                  {courtError && (
+                    <div id="court-error" className="mt-1 text-xs text-red-400">Court is required.</div>
+                  )}
                 </div>
 
                 <div>
@@ -161,7 +186,7 @@ export default function AddEventModal() {
                 <button
                   className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={onSave}
-                  disabled={Boolean(endTime) && toMinutes(endTime) <= toMinutes(startTime)}
+                  disabled={isEndInvalid || isCourtInvalid}
                 >
                   Save
                 </button>

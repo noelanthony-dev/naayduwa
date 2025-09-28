@@ -1,4 +1,5 @@
 "use client";
+import { getAuth } from "firebase/auth";
 
 import { app } from "./firebase";
 import {
@@ -34,6 +35,7 @@ export function subscribeEvents(
 
       out.push({
         ...data,
+        attendees: (data.attendees as EventItem["attendees"]) ?? [],
         id: d.id,
         updatedAt,
       } as EventItem);
@@ -44,10 +46,13 @@ export function subscribeEvents(
 
 export async function addEvent(ev: EventItem) {
   const ref = doc(collection(db, EVENTS), ev.id);
-  await setDoc(ref, {
+  const uid = getAuth(app).currentUser?.uid;
+  const payload = sanitize({
     ...ev,
+    ...(uid ? { ownerUid: uid } : {}), // include only if available
     updatedAt: Timestamp.fromMillis(Date.now()),
   });
+  await setDoc(ref, payload, { merge: true });
 }
 
 export async function deleteEvent(eventId: string) {
@@ -55,16 +60,15 @@ export async function deleteEvent(eventId: string) {
 }
 
 export async function addAttendee(eventId: string, attendee: Attendee) {
-  // Use atomic approach: read, modify, write (safer than arrayUnion for partial equality)
   const ref = doc(db, EVENTS, eventId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
   const data = snap.data() as EventItem;
   const next = [...(data.attendees ?? []), attendee];
-  await updateDoc(ref, {
+  await updateDoc(ref, sanitize({
     attendees: next,
     updatedAt: Timestamp.fromMillis(Date.now()),
-  });
+  }));
 }
 
 export async function removeAttendee(eventId: string, attendeeId: string) {
@@ -73,8 +77,24 @@ export async function removeAttendee(eventId: string, attendeeId: string) {
   if (!snap.exists()) return;
   const data = snap.data() as EventItem;
   const next = (data.attendees ?? []).filter((a) => a.id !== attendeeId);
-  await updateDoc(ref, {
+  await updateDoc(ref, sanitize({
     attendees: next,
     updatedAt: Timestamp.fromMillis(Date.now()),
-  });
+  }));
+}
+
+function sanitize<T>(input: T): T {
+  const prune = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(prune);
+    if (v !== null && typeof v === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+        const cleaned = prune(val);
+        if (cleaned !== undefined) out[k] = cleaned;
+      }
+      return out;
+    }
+    return v === undefined ? undefined : v;
+  };
+  return prune(input) as T;
 }
